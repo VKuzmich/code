@@ -1,6 +1,8 @@
 require '../spec_helper'
+require_relative '../../lib/codebreaker/codebreaker_data'
 
 module Codebreaker
+
   RSpec.describe Game do
 
     let(:game) { Game.new }
@@ -22,8 +24,8 @@ module Codebreaker
         expect(subject.instance_variable_get(:@hint)).to be true
       end
 
-      it 'sets available attempts equal ATTEMPTS NUMBER' do
-        expect(subject.instance_variable_get(:@available_attempts)).to eq(10)
+      it 'sets available attempts equal ATTEMPTS' do
+        expect(subject.instance_variable_get(:@available_attempts)).to eq(15)
       end
 
       it "sets result equal ''" do
@@ -37,7 +39,7 @@ module Codebreaker
         subject.start
       end
 
-      it 'saves secret code' do
+      it 'create secret code' do
         expect(subject.instance_variable_get(:@secret_code)).not_to be_empty
       end
 
@@ -50,35 +52,30 @@ module Codebreaker
       end
     end
 
-    context '#check_enter' do
+    context '#check_input' do
 
       let(:not_valid_code) {'aaaaa'}
       let(:valid_code) {'1234'}
       let(:hint_code) {'h'}
 
       it 'throw the warning if user_code is not valid' do
-        expect(subject.check_enter(not_valid_code)).to eq 'Incorrect format'
-      end
-
-      it 'throw the warning if there are no attempts left' do
-        subject.instance_variable_set(:@available_attempts, 0)
-        expect(subject.check_enter(valid_code)).to eq 'There are no attempts left'
+        expect(subject.check_input(not_valid_code)).to eq 'Incorrect format'
       end
 
       it 'reduces available_attempts by 1' do
-        subject.instance_variable_set(:@available_attempts, 10)
+        subject.instance_variable_set(:@available_attempts, 15)
         allow(subject).to receive(:check_matches).with(valid_code).and_return('+')
-        expect { subject.check_enter(valid_code) }.to change { subject.available_attempts }.from(10).to(9)
+        expect { subject.check_input(valid_code) }.to change { subject.available_attempts }.from(10).to(9)
       end
 
       it 'returns hint if user entered h' do
         allow(subject).to receive(:hint).and_return('2')
-        expect(subject.check_enter(hint_code)).to eq('2')
+        expect(subject.check_input(hint_code)).to eq('2')
       end
 
       it 'returns the result of matching' do
         allow(subject).to receive(:check_matches).with(valid_code).and_return('+')
-        expect(subject.check_enter(valid_code)).to eq '+'
+        expect(subject.check_input(valid_code)).to eq '+'
       end
     end
 
@@ -101,42 +98,40 @@ module Codebreaker
     end
 
     context '#check_matches' do
-      let(:user_code) {'1234'}
 
       before do
         subject.start
       end
 
-      it 'return ++++ if user_code matches secret_code exactly' do
-        subject.instance_variable_set(:@secret_code, '1234')
-        subject.check_matches(user_code)
-        expect(subject.instance_variable_get(:@result)).to eq '++++'
+
+      CodebreakerData.data.each do |item|
+        it "returns #{item[2]} when user code #{item[1]} and secret code  #{item[0]}" do
+          subject.instance_variable_set(:@secret_code, item[0])
+          subject.check_matches(item[1])
+          expect(subject.instance_variable_get(:@result)).to eq item[2]
+        end
+      end
+    end
+    context '#save_to_file' do
+
+      let(:filename) {"game_results.txt"}
+      let(:username) {"Max"}
+
+      before do
+        subject.start
+        subject.save_to_file(filename, username)
+        allow(File).to receive(:open).with(filename,'a')
       end
 
-      it 'returns plus if one number matches exactly' do
-        subject.instance_variable_set(:@secret_code, '1556')
-        subject.check_matches(user_code)
-        expect(subject.instance_variable_get(:@result)).to eq '+'
+      it 'creates file' do
+        expect(File.exist?(filename)).to be true
       end
 
-      it 'returns minus if one number just matches' do
-        subject.instance_variable_set(:@secret_code, '4566')
-        subject.check_matches(user_code)
-        expect(subject.instance_variable_get(:@result)).to eq '-'
+      it 'writes content to file' do
+        subject.instance_variable_set(:@available_attempts, 8)
+        stub_const('Game::ATTEMPTS', 15)
+        expect(File.read(filename)).to match "Max|used attempts 2"
       end
-
-      it 'returns +- if one number matches exactly and one number just matches' do
-        subject.instance_variable_set(:@secret_code, '1456')
-        subject.check_matches(user_code)
-        expect(subject.instance_variable_get(:@result)).to eq '+-'
-      end
-
-      it 'returns no_matches if nothing matches' do
-        subject.instance_variable_set(:@secret_code, '5566')
-        subject.check_matches(user_code)
-        expect(subject.instance_variable_get(:@result)).to eq ''
-      end
-
     end
   end
 end
